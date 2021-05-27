@@ -1,0 +1,603 @@
+---
+title: "Can Economic Integration reduce social unrest? Evidence from China, Hong Kong and Macau"
+author: "Online Appendix"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+geometry: "left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm"
+output:
+  pdf_document:
+    template: min-template.tex
+    latex_engine: xelatex
+    keep_tex: true
+    toc: true
+    toc_depth: 3
+bibliography: zotero2019.bib
+csl: apa.csl
+CJKmainfont: Noto Sans CJK TC Regular
+fig_caption: yes
+header-includes:
+  - \usepackage{setspace}
+  - \usepackage[style=apa,natbib=true, backend=biber]{biblatex}
+  - \usepackage{placeins}
+  - \usepackage{dsfont}
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{unicode-math}
+  - \usepackage{xeCJK}  
+  - \usepackage{dcolumn}
+  - \usepackage{rotating, graphicx}
+---
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{proof}{Proof}
+
+\newcommand{\qed}{\nobreak \ifvmode \relax \else
+	\ifdim\lastskip<1.5em \hskip-\lastskip
+	\hskip1.5em plus0em minus0.5em \fi \nobreak
+	\vrule height0.75em width0.5em depth0.25em\fi}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(bookdown)
+library(tidyverse)
+library(lme4)
+#library(QCA3)
+library(ggplot2)
+library(stargazer)
+#library(utils)
+#library(plm)
+library(car)
+library(lattice)
+library(brms)
+library(gridExtra)
+#library(lmtest)
+setwd("***your path here***")
+#setwd("~/Google Drive/Research/ba-ecpr17-integration-appease")
+
+hkmo <- read_csv("hkmo-dataset.csv")
+
+#read in protest counts
+protest <- read_csv("Protest Count/cnhkmo_protest_data_REG_YEAR.csv")
+protest<- protest[,-1]
+
+#calibrate, join protest to main dataset
+hkmo$case <- ifelse(hkmo$case == "hk", "Hong Kong", "Macau")
+hkmo <- hkmo %>% mutate(region = case) %>% select(-case)
+
+hkmo <- left_join(hkmo, protest, by=c("region", "year"))
+
+hkmo$fdi <- hkmo$fdi_fromcn + hkmo$fdi_tocn
+
+hkmo$n_protest <- ifelse(is.na(hkmo$n_protest), 0, hkmo$n_protest)
+
+```
+\maketitle
+
+\newpage
+
+# A. Impact of Trade Liberalization on Social Unrest in Hong Kong and Macau, 1994-2018.
+
+```{r the-models, include=FALSE}
+#ols <- lm( I(pori_1c2s_noconfi*100) ~ dale_k_to_CN + dale_CN_to_k + tot_trade , data=hkmo)
+mixed <- lme4::lmer( I(pori_1c2s_noconfi*100) ~ dale_k_to_cn + dale_cn_to_k + tot_trade +(1|year) + (1|region), data=hkmo)
+#ols2 <- lm( I(pori_1c2s_noconfi*100) ~ dale_k_to_cn * dale_cn_to_k + tot_trade, data=hkmo)
+mixed2 <- lme4::lmer( I(pori_1c2s_noconfi*100) ~ dale_k_to_cn * dale_cn_to_k + tot_trade +(1|year) + (1|region), data=hkmo)
+
+
+#new stuff:
+mixed3 <- lme4::lmer(I(pori_1c2s_noconfi*100) ~ dale_k_to_cn +
+                       dale_cn_to_k + tot_trade+
+                       fdi+
+                       stock+
+                       (1|year) + (1|region), data=hkmo) # + fdi & stock market integration indicators
+
+mixed4 <- update(mixed3, .~. +
+                   bridge_pulse+
+                   railway_pulse+
+                   henqin_pulse)
+
+mixed5 <- update(mixed4, .~. + dale_k_to_cn * dale_cn_to_k )
+```
+
+
+## A1: Descriptive Statics
+
+Descriptive statistics across Hong Kong and Macau:
+```{r desciptives, results="asis"}
+dat<- hkmo %>% select(pori_1c2s_confi, pori_1c2s_noconfi, dale_cn_to_k, dale_k_to_cn, tot_trade)
+means <- sapply(dat, mean, na.rm=T)
+sds <- sapply(dat, sd, na.rm=T)
+medians <- sapply(dat, median, na.rm=T)
+mins <- sapply(dat, min, na.rm=T)
+maxi <- sapply(dat, max, na.rm=T)
+
+out <- rbind(means, medians, sds, mins, maxi)
+out <- t(out)
+colnames(out) <- c("Mean", "Median", "Std. Dev.","Min", "Max")
+rownames(out) <- c("Confidence in 1C2S %", "Dissent in 1C2S %", "UEI", "Dependence", "Total Trade (Billion USD)")
+stargazer(as.matrix(out), header=FALSE, title ="Descriptive Statistics of the Empirical Analysis")
+```
+
+Descriptive Statistics by region:
+```{r describe_by_region, results="asis"}
+which_var <- c("pori_1c2s_confi", "pori_1c2s_noconfi", "dale_cn_to_k", "dale_k_to_cn", "tot_trade", "rgdpe")
+df <- hkmo %>% dplyr::filter(region == "Hong Kong") %>% dplyr::select(which_var)
+df <- na.omit(df)
+means<-sapply(df, mean, na.rm=T) %>% round(digits=2)
+sds<-sapply(df, sd, na.rm=T) %>% round(digits=2)
+mins<-sapply(df, min, na.rm=T) %>% round(digits=2)
+maxs<-sapply(df, max, na.rm=T) %>% round(digits=2)
+b1_hk<-cbind(means,sds,mins,maxs)
+b1_hk<-rbind(c("Hong Kong","","",""),
+             b1_hk, 
+             c(nrow(df),"","",""))
+rownames(b1_hk)<-c("",
+                   "Confidence in 1C2S pc.",
+                "No Confidence in 1C2S pc.",
+                "UEI",
+                "Dependence",
+                "Trade Volume (bn. USD)",
+                "RGDPe (2011 Intl Dollar).",
+                "N")
+colnames(b1_hk)<-c("Mean", "SD", "Min", "Max")
+
+df <- hkmo %>% dplyr::filter(region == "Macau") %>% dplyr::select(which_var)
+df <- na.omit(df)
+means<-sapply(df, mean, na.rm=T) %>% round(digits=2)
+sds<-sapply(df, sd, na.rm=T) %>% round(digits=2)
+mins<-sapply(df, min, na.rm=T) %>% round(digits=2)
+maxs<-sapply(df, max, na.rm=T) %>% round(digits=2)
+b1_mo<-cbind(means,sds,mins,maxs)
+b1_mo<-rbind(c("Macau","","",""),
+             b1_mo, 
+             c(nrow(df),"","",""))
+rownames(b1_mo)<-c("",
+                   "Confidence in 1C2S pc.",
+                "No Confidence in 1C2S pc.",
+                "UEI",
+                "Dependence",
+                "Trade Volume (bn. USD)",
+                "RGDPe (2011 Intl Dollar).",
+                "N")
+colnames(b1_mo)<-c("Mean", "SD", "Min", "Max")
+
+stargazer(b1_hk, b1_mo, header=F, single.row = TRUE, title="Descriptive statistics by region.")
+```
+
+\newpage
+
+## A2: Time Series Plot of Trade Data
+
+The implementation of the CEPA in 2003 is highlighted by a vertical dash line in the following plots.\ 
+
+```{r ts-trade-raw, results="asis", fig.cap="Trade Data Series in Hong Kong and Macau, 1994-2018"}
+#### Plot : X of k to CN
+p1 <- ggplot(hkmo %>% filter(region=="Hong Kong"), aes(x=year, y=X_ktoCN))+
+  geom_point()+
+  geom_line()+
+  geom_vline(xintercept=2003, lty=2)+
+  labs(title="Exports to China", subtitle = "Hong Kong")+
+  xlab("year")+
+  ylab("Exports to China ($millon HKD)")+
+  theme_bw()
+
+p2<- ggplot(hkmo %>% filter(region=="Macau"), aes(x=year, y=X_ktoCN))+
+  geom_point()+
+  geom_line()+
+  geom_vline(xintercept=2003, lty=2)+
+  labs(title="Exports to China", subtitle = "Macau")+
+  xlab("year")+
+  ylab("Exports to China ($millon HKD)")+
+  theme_bw()
+
+p3<- ggplot(hkmo %>% filter(region=="Hong Kong"), aes(x=year, y=M_ktoCN))+
+  geom_point()+
+  geom_line()+
+  geom_vline(xintercept=2003, lty=2)+
+  labs(title="Imports from China", subtitle = "Hong Kong")+
+  xlab("year")+
+  ylab("Imports from China ($millon HKD)")+
+  theme_bw()
+
+p4<- ggplot(hkmo %>% filter(region=="Macau"), aes(x=year, y=M_ktoCN))+
+  geom_point()+
+  geom_line()+
+  geom_vline(xintercept=2003, lty=2)+
+  labs(title="Imports from China", subtitle = "Macau")+
+  xlab("year")+
+  ylab("Imports from China ($millon HKD)")+
+  theme_bw()
+  
+grid.arrange(p1,p2,p3,p4)
+```
+
+```{r ts-tii-1, results="asis", fig.cap="Trade Intensity Index with regards to China, 1994-2018"}
+p5 <- ggplot(hkmo %>% filter(region=="Hong Kong"), aes(x=year, y=dale_k_to_cn))+
+  geom_point()+
+  geom_line()+
+  geom_vline(xintercept=2003, lty=2)+
+  labs(title="TII w.r.t China", subtitle = "Hong Kong")+
+  xlab("year")+
+  ylab("TII")+
+  theme_bw()
+
+p6 <- ggplot(hkmo %>% filter(region=="Macau"), aes(x=year, y=dale_k_to_cn))+
+  geom_point()+
+  geom_line()+
+  geom_vline(xintercept=2003, lty=2)+
+  labs(title="TII w.r.t China", subtitle = "Macau")+
+  xlab("year")+
+  ylab("TII")+
+  theme_bw()
+
+grid.arrange(p5,p6)
+```
+
+```{r ts-tii-2, results="asis", fig.cap="Trade Intensity Index with regards to Hong Kong and Macau, 1997-2019"}
+ggplot(hkmo, aes(x=year, y=dale_cn_to_k, col=region))+
+  geom_point()+
+  geom_line()+
+  geom_vline(xintercept=2003, lty=2)+
+  labs(title="TII w.r.t region")+
+  xlab("year")+
+  ylab("TII")+
+  theme_bw()
+```
+
+
+\FloatBarrier
+
+## A3 : Frequentist Estimation with Panel (Fixed Effects) Estimators
+```{r plmtabs, results="asis"}
+library(plm)
+
+paneldat <- hkmo
+paneldat <- pdata.frame(paneldat, index=c("region","year"))
+
+panel1 <- plm( I(pori_1c2s_noconfi*100)~ dale_cn_to_k + dale_k_to_cn + tot_trade, model="within", data=paneldat)
+panel2 <- plm( I(pori_1c2s_noconfi*100)~ dale_cn_to_k * dale_k_to_cn + tot_trade, model="within",  data=paneldat)
+panel5 <- plm( I(pori_1c2s_noconfi*100)~ dale_cn_to_k * dale_k_to_cn + tot_trade + fdi + stock + bridge_pulse + railway_pulse+ henqin_pulse, model="within", data=paneldat)
+
+stargazer(panel1, panel2,panel5, header=FALSE, title ="Estimation by multivariate regression",
+          covariate.labels = c("UEI", "Dependence",
+                               "Trade Volume",
+                               "FDI",
+                               "Stock Market Joint Movement",
+                               "HZMB",
+                               "HK-Shenzhen ERL",
+                               "Hengqin Island Joint Development",
+                               "Dependence * UEI"),
+          single.row = TRUE, dep.var.caption = "Percentage of people not confident in the 1C2S",
+          dep.var.labels.include = FALSE, star.cutoffs = c(.05,.01,.001),
+          font.size="small",
+          notes=c("Presented are the results estimated by the one-way Fixed Effects Model.",
+                     "Standard errors are in parentheses."), align=T, 
+          column.sep.width = "-50pt",
+          notes.align = "r")
+```
+\FloatBarrier
+
+## A4: Diagnostics of the Frequentist Models
+
+Distribution of Residuals:\ 
+
+```{r mlm-diag, results="asis"}
+frame <- model.frame(mixed5)
+plotdat <- data.frame(dep = frame$dale_k_to_cn,
+                      resid = resid(mixed5))
+ggplot(plotdat, aes(x=dep, y=resid))+
+  geom_point()+
+  labs(x="Dependence" , y="Standardized Residuals")+
+  theme_bw()
+#plot(frame$dale_k_to_cn, resid(mixed5), xlab="Dependence", ylab="Standardized Residuals")
+```
+
+Homogeneity of variance:
+```{r homovar}
+frame$residuals<- residuals(mixed5) #extracts the residuals and places them in a new column in our original data table
+frame$residuals_abs <- abs(frame$residuals) #creates a new column with the absolute value of the residuals
+frame$residuals_abs2 <- frame$residuals_abs^2 #squares the absolute values of the residuals to provide the more robust estimate
+Levene.Model.F <- lm(residuals_abs2 ~ region, data=frame) #ANOVA of the squared residuals
+anova(Levene.Model.F) #displays the results
+```
+The only clear pattern emerging from the residuals is that the residual distributions are quite different between the Hong Kong observations and Macau observations due to Macau having extremely high dependence. The Levene Test also shows that the distribution of variance is dependent on the region. While this may damage the robustness of our estimates in the multi-level models, note that we have acquired the same results from the panel models reported in section A3. The panel model is only looking at within-case fixed effects, so the estimated effect is not dependent on the region. Therefore, we can still say the results are robust to case selection, as well as estimation technique.\ 
+
+\FloatBarrier
+
+Normality of residuals:\ 
+
+```{r qq-resid, results="asis"}
+qqmath(mixed5, id=.05)
+```
+Overall the standardized residuals almost form a straight diagonal line to standard normal quantiles. This suggests that the residuals resemble a normal distribution.\ 
+
+## A5. Diagnostics of the Bayesian Model
+
+### The Model
+```{r loadmod-hk, results="hide"}
+load("hk_mod2.RData")
+```
+
+```{r recover-priors-hkmod, results="hide"}
+prior_summary(count_bmod)
+```
+
+When fitting this multi-level zero-inflated negative binomial model (ZINB), we assume the following:
+$$y_i \sim N(\mu, \sigma^2_i)$$
+$$\mu = \symbf{\eta} + \textbf{X}\symbf{\beta}$$
+$$\eta_{year} \sim N(0,1)$$
+$$\eta_{region} \sim N(0,1)$$
+$$\gamma \sim Gamma(.01, .01)$$
+$$\tau \sim Beta(1,1)$$
+
+where the two $\eta$s refer to the random intercepts for region and years respectively, $\gamma$ refers to the zero inflation parameter of the ZINB, and $\tau$ refers to the probability of success. A strong prior of $\eta \sim N(0,1)$ is imposed for computational purposes, as in prior runs the $\eta$s tend to drift around very large numbers. \ 
+
+I also had to drop the event dummies because they would lead to the problem of complete separation. Both Frequentist and Bayesian estimation failed after including the event dummies. Considering that from the frequentist estimation none of the event dummies achieved statistical evidence, dropping these should not affect effect estimation.\ 
+
+### Point Estimates and Critical Intervals
+
+|                             | Mean Number of Protests |
+|------------------------------|-------------------------|--------------------------|
+| Predictors                   | Incidence Rate Ratios   | CI \(95\%\)              |
+| Intercept                    | 23\.51                  | 0\.00–3350298\.55        |
+| Dependence                   | 1\.03                   | 0\.97–1\.11              |
+| UEI                          | 0\.80                   | 0\.25–2\.09              |
+| Trade Volume                 | 3\.37                   | 0\.05–195\.38            |
+| FDI                          | 0\.49                   | 0\.03–5\.82              |
+| Stock Market Integration     | 0\.46                   | 0\.06–2\.28              |
+| Dependence \* UEI            | 0\.99                   | 0\.97–1\.00              |
+| Random Effects               |
+| $\sigma^2$                   | 677\.90                 |
+| $\tau_{00}$                  | 243\.32                 |
+| ICC                          | 0\.80                   |
+| N region                     | 2                       |
+| N year                       | 18                      |
+| Observations                 | 34                      |
+| Marginal R2 / Conditional R2 | 0\.119 / 0\.628         |
+
+
+### Coefficient Distribution and MCMC Convergence
+
+```{r hkbmod-plot, results="asis"}
+plot(count_bmod)
+```
+Note that the ZINB would run into computational issues if we variables are measured on drastically different scales. This is particularly the case for total trade volume, FDI and stock market joint movement which are measured in large quantities. To avoid this, I mean-centered these variables. Here, `dale_k_to_cn` refers to the Trade Intensity Index (TTI) for a region towards China; `dale_cn_to_k` refers to the TTI for China towards a peripheral region; `scaletot_trade` refers to the total trade volume in goods at the regional level; `scalefdi` refers to the FDI volume at the regional level; `scalestock` refers to the stock market joint movement in a particular region. \ 
+
+In this model, the MCMC chains have converged and remained stationary in the last 10000 samples from the posterior. This suggests that the model has converged well. \ 
+
+### Posterior Predictive Check
+
+```{r}
+pp_check(count_bmod)
+```
+The Posterior Predictive Check allows us to compare the predicted mean numbers of protest drawn from the posterior ($y_{rep}$) to the observed value $y$. In this plot we can see the posterior behaved quite well, with a minor exception that it tends to predict the mean number to be around 50 whereas the observed distribution has no cases in which this is true. 
+
+\FloatBarrier
+
+## A6: Models including GDP
+
+```{r nowwithgdp, results="asis", warning=FALSE}
+mixed_gdp <- update(mixed, .~. + I(log(rgdpe)))
+mixed2_gdp <- update(mixed2, .~. + I(log(rgdpe)))
+mixed5_gdp <- update(mixed5, .~. + I(log(rgdpe)))
+
+frame<- model.frame(mixed5_gdp)
+correq <- round(cor(frame$`I(log(rgdpe))`, frame$tot_trade),3)
+
+stargazer(mixed_gdp, mixed2_gdp, mixed5_gdp, header=FALSE, title ="Estimation by multivariate regression",
+          covariate.labels = c("Dependence", "UEI",
+                               "Trade Volume",
+                               "FDI",
+                               "Stock Market Joint Movement",
+                               "HZMB",
+                               "HK-Shenzhen ERL",
+                               "Hengqin Joint Development",
+                               "Log GDP",
+                               "Dependence * UEI",
+                               "Intercept"),
+          single.row = TRUE, dep.var.caption = "Percentage of people not confident in the 1C2S",
+          dep.var.labels.include = FALSE, star.cutoffs = c(.05,.01,.001),
+          font.size="small",
+          notes=c("Presented are the results estimated by linear mixed-effects regression.",
+                     "with random intercepts varying by region and year of the observation.",
+                     "Standard errors are in parentheses."), align=T, 
+          column.sep.width = "-50pt",
+          notes.align = "r")
+```
+
+The above table presents the results of table 2 when we include log GDP per capita, using data from the Penn's World Table 7.1.
+
+It is true that in model 5, our interaction variable between dependence and UEI lost statistical significance, but note that the effect is still in the expected direction. In addition, I suspect the lost significance is due to high multicollinearity between Log GDP per capita and total trade. The following Variance Inflation Factor (VIF) values suggest that this is true, as log GDP per capita has a highly inflated VIF value at 18.475, which far surpasses the rule of thumb for no multicollinearity at 10. Furthermore, the correlation between log GDP per capita and total trade volume is at a whopping ```r correq```, which suggests that we would not be able to acquire accurate estimates if we were to control for GDP simultaneously having total trade volume as one of our covariates. Given that in the literature the theory is about trade volume with international partners, I decided to go with trade volume instead of log GDP per capita.
+
+```{r vif-mc, results="asis"}
+vif(mixed5_gdp)
+```
+
+\FloatBarrier
+
+```{r gdp-bayes-load, results="hide", include=FALSE}
+rm(count_bmod)
+load("hk_mod2_gdp.RData")
+```
+
+```{r gdp-bayes-coefs, results="asis"}
+plot(count_bmod)
+```
+
+\FloatBarrier
+
+\newpage
+
+## A7: Models Including Gini Coefficient
+```{r gini-freq, results="hide"}
+mixed <- lme4::lmer( I(pori_1c2s_noconfi*100) ~ dale_k_to_cn + dale_cn_to_k + tot_trade +(1|year) + (1|region), data=hkmo)
+#ols2 <- lm( I(pori_1c2s_noconfi*100) ~ dale_k_to_cn * dale_cn_to_k + tot_trade, data=hkmo)
+mixed2 <- lme4::lmer( I(pori_1c2s_noconfi*100) ~ dale_k_to_cn * dale_cn_to_k + tot_trade +(1|year) + (1|region), data=hkmo)
+
+
+#new stuff:
+mixed3 <- lme4::lmer(I(pori_1c2s_noconfi*100) ~ dale_k_to_cn +
+                       dale_cn_to_k + tot_trade+
+                       fdi+
+                       stock+
+                       (1|year) + (1|region), data=hkmo) # + fdi & stock market integration indicators
+
+mixed4 <- update(mixed3, .~. +
+                   bridge_pulse+
+                   railway_pulse+
+                   henqin_pulse +gini)
+
+mixed5 <- update(mixed4, .~. + dale_k_to_cn * dale_cn_to_k )
+```
+
+```{r gini-freq-report, results="asis"}
+stargazer(mixed, mixed2, mixed5, header=FALSE, title ="Estimation by multivariate regression",
+          covariate.labels = c("Dependence", "UEI",
+                               "Trade Volume",
+                               "FDI",
+                               "Stock Market Joint Movement",
+                               "HZMB",
+                               "HK-Shenzhen ERL",
+                               "Hengqin Joint Development",
+                               "Gini Coefficient",
+                               "Dependence * UEI",
+                               "Intercept"),
+          single.row = TRUE, dep.var.caption = "Percentage of people not confident in the 1C2S",
+          dep.var.labels.include = FALSE, star.cutoffs = c(.05,.01,.001),
+          font.size="small",
+          notes=c("Presented are the results estimated by linear mixed-effects regression.",
+                     "with random intercepts varying by region and year of the observation.",
+                     "Standard errors are in parentheses."), align=T, 
+          column.sep.width = "-50pt",
+          notes.align = "r")
+```
+
+```{r empirical1-plots, results="hide"}
+#VISUALIZATION (LOW dependence
+tmpdat <- model.frame(mixed5)
+uei_vec <- seq(from = min(hkmo$dale_cn_to_k, na.rm=T), to = max(hkmo$dale_cn_to_k,  na.rm=T), length = 100)
+lambda <- min(tmpdat$dale_k_to_cn, na.rm=T)
+
+pp <- lapply(uei_vec, function(x) {
+  
+    tmpdat$dale_cn_to_k <- x
+    tmpdat$dale_k_to_cn <- lambda
+    predict(mixed2, newdata = tmpdat, type = 'response')
+    
+    })
+
+plotdat_lo <- t(sapply(pp, function(x) { # transposing w/ t() puts data into a column
+    c(M = mean(x), quantile(x, c(0.025, 0.975)))
+}))
+
+plotdat_lo <- data.frame(uei_vec, plotdat_lo, rep("Low",nrow(plotdat_lo)))
+
+colnames(plotdat_lo) <- c('uei', 'pe', 'lo', 'hi',"group")
+
+tmpdat <- model.frame(mixed5)
+lambda <- max(tmpdat$dale_k_to_cn, na.rm=T)
+
+pp <- lapply(uei_vec, function(x) {
+  
+    tmpdat$dale_cn_to_k <- x
+    tmpdat$dale_k_to_cn <- lambda
+    predict(mixed2, newdata = tmpdat, type = 'response')
+    
+    })
+
+plotdat_hi <- t(sapply(pp, function(x) { # transposing w/ t() puts data into a column
+    c(M = mean(x), quantile(x, c(0.025, 0.975)))
+}))
+
+plotdat_hi <- data.frame(uei_vec, plotdat_hi, rep("High",nrow(plotdat_hi)))
+
+colnames(plotdat_hi) <- c('uei', 'pe', 'lo', 'hi',"group")
+
+plotdat <- rbind(plotdat_lo, plotdat_hi)
+```
+
+```{r fig1, results="asis", fig.cap="\\label{fig:hk-plot1}Predicting dissent towards 1C2S"}
+## ----newplotout, results="asis", fig.cap="Predicting dissent towards 1C2S"------------------------------------------------
+ggplot(plotdat, aes(x = uei, y = pe, ymin = lo, ymax = hi, lty=group)) +
+  geom_ribbon(alpha = .25) +
+  geom_line() +
+  labs(x = 'UEI', y = '% Dissent to 1C2S') +
+  labs(title="Observed Value Prediction of Dissent towards 1C2S")+
+  scale_linetype_discrete(name="Dependence")+
+  theme_bw()
+```
+
+
+```{r gini-bayes-get, results="hide", include=FALSE}
+rm(count_bmod)
+load("hk_mod2_gini.RData")
+```
+
+\FloatBarrier
+
+```{r gini-bayes-plot, results="asis"}
+plot(count_bmod)
+```
+
+
+# B. Fiscal Decentralization, Economic Dependence and Protests in China, 2000-2019
+
+```{r load_cnbmod, results="hide"}
+load("cn_mod2.RData")
+```
+
+##  B1: The Model
+See Section A5
+
+## B2: Point Estimates and Critical Intervals
+
+|                              | Mean Number of Protests |
+|------------------------------|-------------------------|---------------|
+| Predictors                   | Incidence Rate Ratios   | CI \(95\%\)    |
+| Intercept                    | 1\.46                   | 0\.49 – 4\.23 |
+| UEI                          | 0\.58                   | 0\.27 – 1\.03 |
+| Dependence                   | 1\.49                   | 0\.91 – 2\.52 |
+| Trade Volume                 | 1\.09                   | 0\.86 – 1\.40 |
+| UEI \* Dependence            | 0\.82                   | 0\.57 – 1\.23 |
+| Random Effects               |
+| $\sigma^2$                   | 2868\.98                |
+| $\tau_{00}$                  | 7\.36                   |
+| ICC                          | 1\.00                   |
+| N year                       | 19                      |
+| N region                     | 31                      |
+| Observations                 | 588                     |
+| Marginal R2 / Conditional R2 | 0\.000 / 0\.640         |
+
+
+## B3: Coefficient Distribution and MCMC Convergence
+
+```{r cnbmod-plot, results="asis"}
+plot(cnmod1)
+```
+Again, I mean-centered all variables to ease the computational difficulty for the model. Here, `scalesubin` refers to the subsidies provided by the central government; `scaleshared_income` refers to the total amount of shared income at the provincial level with the central government, `scaleT_goods` refers to the total trade volume in goods at the provincial level.\ 
+
+Again, the MCMC chains have achieved stationarity around 10000 samples from the posterior, suggesting that the model has converged.\ 
+
+## B4: Predictive Posterior Check
+```{r}
+pp_check(cnmod1)
+```
+This model has almost correctly predicted all observed counts of protest, thus we should be confident in the accuracy of the posterior draws.
+
+## B5: Conditional Effects for Subsidies
+
+```{r subinfx, include=FALSE}
+fx3 <- conditional_effects(cnmod1, effects = "subin")
+pfx3 <- plot(fx3)
+```
+
+```{r subinfx_beautiful, results="asis"}
+pfx3$subin+
+  labs(x="Subsidies| Shared Income = 0",
+           y="log(E(N Protest))")+
+  ggplot2::xlim(c(50,2000))+
+  ggplot2::ylim(c(0,5))+
+  theme_bw()
+```
+
+
