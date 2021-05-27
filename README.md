@@ -1,6 +1,6 @@
 # README
 
-This is a Github Repository for the Replication materials for the paper "Can Economic Integration reduce social unrest? Evidence from China, Hong Kong and Macau" Published on the Journal of East Asian Studies.
+This is a Github Repository for the Replication materials for the paper "Can Economic Integration reduce social unrest? Evidence from China, Hong Kong and Macau" Published in the Journal of East Asian Studies.
 
 ## Main Text
 
