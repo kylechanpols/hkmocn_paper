@@ -12,7 +12,7 @@ This is a Github Repository for the Replication materials for the paper "Can Eco
 
 ## GIS Analysis (Figure 3)
 
-`mapping/plotting_map.R` - Code to replicate figure 3 (the GIS rendition of protest counts in different parts of China).
+`mapping/plotting_map.R` - Code to replicate figure 3 (the GIS rendition of protest counts in different parts of China). Note that you will need shape files from [GADM](https://gadm.org/).
 
 `mapping/reverse-geocoding.R` - Code to reverse geocode GDELT events data and sort them to provinces.
 
