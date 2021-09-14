@@ -1,4 +1,4 @@
-# README
+# Can Economic Integration reduce social unrest? Evidence from China, Hong Kong and Macau
 
 This is a Github Repository for the Replication materials for the paper "Can Economic Integration reduce social unrest? Evidence from China, Hong Kong and Macau" Published in the Journal of East Asian Studies.
 
